@@ -2,7 +2,7 @@
 "use strict";
 
 var base_1 = require('@cycle/base');
-var rxjs_adapter_1 = require('@cycle/rxjs-adapter');
+var rx_hot_adapter_1 = require('rx-hot-adapter');
 /**
  * A function that prepares the Cycle application to be executed. Takes a `main`
  * function and prepares to circularly connects it to the given collection of
@@ -31,7 +31,7 @@ var rxjs_adapter_1 = require('@cycle/rxjs-adapter');
  * @function Cycle
  */
 var Cycle = function Cycle(main, drivers) {
-  return base_1.default(main, drivers, { streamAdapter: rxjs_adapter_1.default });
+  return base_1.default(main, drivers, { streamAdapter: rx_hot_adapter_1.default });
 };
 /**
  * Takes a `main` function and circularly connects it to the given collection
@@ -60,7 +60,7 @@ var Cycle = function Cycle(main, drivers) {
  * @function run
  */
 function run(main, drivers) {
-  var run = base_1.default(main, drivers, { streamAdapter: rxjs_adapter_1.default }).run;
+  var run = base_1.default(main, drivers, { streamAdapter: rx_hot_adapter_1.default }).run;
   return run();
 }
 exports.run = run;
@@ -69,7 +69,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = Cycle;
 
 
-},{"@cycle/base":2,"@cycle/rxjs-adapter":3}],2:[function(require,module,exports){
+},{"@cycle/base":2,"rx-hot-adapter":3}],2:[function(require,module,exports){
 "use strict";
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
@@ -183,14 +183,20 @@ exports.default = Cycle;
 
 },{}],3:[function(require,module,exports){
 "use strict";
-var Rx = require('rxjs');
-var RxJSAdapter = {
+var Rx = require('rx');
+var Hot = require('rx-hot');
+var RxJSHotAdapter = {
     adapt: function (originStream, originStreamSubscribe) {
         if (this.isValidStream(originStream)) {
             return originStream;
         }
-        return Rx.Observable.create(function (observer) {
-            var dispose = originStreamSubscribe(originStream, observer);
+        return Hot.create(function (destinationObserver) {
+            var originObserver = {
+                next: function (x) { return destinationObserver.onNext(x); },
+                error: function (e) { return destinationObserver.onError(e); },
+                complete: function () { return destinationObserver.onCompleted(); },
+            };
+            var dispose = originStreamSubscribe(originStream, originObserver);
             return function () {
                 if (typeof dispose === 'function') {
                     dispose.call(null);
@@ -199,31 +205,113 @@ var RxJSAdapter = {
         });
     },
     remember: function (observable) {
-        return observable.publishReplay(1).refCount();
+        return observable.shareReplay(1);
     },
     makeSubject: function () {
         var stream = new Rx.Subject();
         var observer = {
-            next: function (x) { stream.next(x); },
-            error: function (err) { stream.error(err); },
-            complete: function () { stream.complete(); },
+            next: function (x) { stream.onNext(x); },
+            error: function (err) { stream.onError(err); },
+            complete: function (x) { stream.onCompleted(); }
         };
         return { stream: stream, observer: observer };
     },
     isValidStream: function (stream) {
-        return (typeof stream.subscribe === 'function' &&
-            typeof stream.subscribeOnNext !== 'function' &&
+        return (typeof stream.subscribeOnNext === 'function' &&
             typeof stream.onValue !== 'function');
     },
     streamSubscribe: function (stream, observer) {
-        var subscription = stream.subscribe(observer);
+        var subscription = stream.subscribe(function (x) { return observer.next(x); }, function (e) { return observer.error(e); }, function (x) { return observer.complete(x); });
         return function () {
-            subscription.unsubscribe();
+            subscription.dispose();
         };
     }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.default = RxJSAdapter;
+exports.default = RxJSHotAdapter;
 
-},{"rxjs":undefined}]},{},[1])(1)
+},{"rx":undefined,"rx-hot":4}],4:[function(require,module,exports){
+var Observable = require('rx').Observable
+var _Proxy
+
+if (typeof Proxy === 'function'){
+  _Proxy = Proxy
+} else {
+  _Proxy = function (target, handler) {
+    this.__target = target
+    this.__handler = handler
+    this.isHot = true
+  }
+  _Proxy.prototype = Object.keys(Observable.prototype)
+    .filter(function (key) {
+      return typeof Observable.prototype[key] === 'function'
+    })
+    .reduce(function (proto, key) {
+      proto[key] = function() {
+        return this.__handler.get(this.__target, key).apply(this, arguments)
+      }
+      return proto
+    }, {})
+}
+
+function makeHot(stream) {
+  if (Observable.isObservable(stream)) {
+    return new _Proxy(stream, {
+      get: function (stream, method) {
+        if (method === 'isHot'){
+          return true
+        }
+        return function () {
+          if ((method === 'subscribe' || method === 'forEach')) {
+            if (!stream.___shared){
+              stream.___shared = stream.share()
+            }
+            stream = stream.___shared
+          }
+          return makeHot(stream[method].apply(stream, arguments))
+        }
+      }
+    })
+  }
+  return stream
+}
+
+var shared = Object.keys(Observable).filter(function (key) {
+  return typeof Observable[key] === 'function'
+}).reduce(function (shared, method) {
+  shared[method] = function () {
+    return makeHot(Observable[method].apply(Observable, arguments))
+  }
+  return shared
+}, {})
+
+shared.combineLatestObj = function (obj) {
+  var sources = [];
+  var keys = [];
+  for (var key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      keys.push(key.replace(/\$$/, ''));
+      sources.push(obj[key]);
+    }
+  }
+  return shared.combineLatest(sources, function () {
+    var argsLength = arguments.length;
+    var combination = {};
+    for (var i = argsLength - 1; i >= 0; i--) {
+      combination[keys[i]] = arguments[i];
+    }
+    return combination;
+  })
+}
+
+shared.combine = function (obj) {
+  if (arguments.length === 1 && obj.constructor === Object) {
+    return shared.combineLatestObj(obj)
+  }
+  return shared.combineLatest.apply(null, arguments)
+}
+
+shared.makeHot = makeHot
+module.exports = shared
+},{"rx":undefined}]},{},[1])(1)
 });

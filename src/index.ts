@@ -4,7 +4,7 @@ import {
   DisposeFunction
 } from '@cycle/base';
 import CycleBase from '@cycle/base';
-import RxJSAdapter from '@cycle/rxjs-adapter';
+import RxAdapter from 'rx-hot-adapter';
 
 /**
  * A function that prepares the Cycle application to be executed. Takes a `main`
@@ -36,9 +36,8 @@ import RxJSAdapter from '@cycle/rxjs-adapter';
 const Cycle: CycleSetup = <CycleSetup>
   function <Sources, Sinks>(main: (sources: Sources) => Sinks,
                             drivers: {[name: string]: Function}): CycleExecution<Sources, Sinks> {
-    return CycleBase(main, drivers, {streamAdapter: RxJSAdapter});
+    return CycleBase(main, drivers, {streamAdapter: RxAdapter});
   };
-
 /**
  * Takes a `main` function and circularly connects it to the given collection
  * of driver functions.
@@ -67,7 +66,7 @@ const Cycle: CycleSetup = <CycleSetup>
  */
 export function run<Sources, Sinks>(main: (sources: Sources) => Sinks,
                                     drivers: {[name: string]: Function}): DisposeFunction {
-  const {run} = CycleBase(main, drivers, {streamAdapter: RxJSAdapter});
+  const {run} = CycleBase(main, drivers, {streamAdapter: RxAdapter});
   return run();
 }
 

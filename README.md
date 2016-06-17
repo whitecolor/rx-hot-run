@@ -1,13 +1,12 @@
-> Cycle.run for RxJS v5
+> Cycle.run for [RxJS v4 Hot](https://github.com/whitecolor/rx-hot)
 
 ## Installing
 
-[![npm version](https://badge.fury.io/js/%40cycle%2Frxjs-run.svg)](http://badge.fury.io/js/%40cycle%2Frxjs-run)
 
-`npm install rxjs @cycle/rxjs-run`
+`npm install rx rx-hot rx-hot-run -S`
 
-Note: `rxjs` is a **required** dependency. Without it, nothing will work.
+Note: `rx` & `rx-hot` are **required** dependencies. Without them, nothing will work.
 
-[![Build Status](https://travis-ci.org/cyclejs/rxjs-run.svg?branch=master)](https://travis-ci.org/cyclejs/rxjs-run)
-[![Dependency Status](https://david-dm.org/cyclejs/rxjs-run.svg)](https://david-dm.org/cyclejs/rxjs-run)
-[![devDependency Status](https://david-dm.org/cyclejs/rxjs-run/dev-status.svg)](https://david-dm.org/cyclejs/rxjs-run#info=devDependencies)
+[![Build Status](https://travis-ci.org/cyclejs/rxjs-run.svg?branch=master)](https://travis-ci.org/whitecolor/rx-hot-run)
+[![Dependency Status](https://david-dm.org/cyclejs/rxjs-run.svg)](https://david-dm.org/whitecolor/rx-hot-run)
+[![devDependency Status](https://david-dm.org/cyclejs/rxjs-run/dev-status.svg)](https://david-dm.org/whitecolor/rx-hot-run#info=devDependencies)
